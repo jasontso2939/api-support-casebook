@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TCK-1043: The 9 a.m. re-check job fails for hundreds of renters</title><meta name="description" content="Burst traffic over the rate limit, retries ignoring Retry-After">
+<link rel="stylesheet" href="../style.css"></head><body>
+<header class="top"><div class="wrap"><div class="crumb"><a href="../index.html">API Support Casebook</a> / TCK-1043</div>
+<h1>The 9 a.m. re-check job fails for hundreds of renters</h1><p>Burst traffic over the rate limit, retries ignoring Retry-After</p>
+<div class="pills"><span class="pill s2">Sev 2</span><span class="pill">Rate limits</span><span class="pill">Opened Tue Oct 6, 09:12 PT</span><span class="pill ok">Resolved Tue Oct 6, 15:40 PT</span></div></div></header>
+<main><div class="wrap"><div class="card"><h2 id="report">Report</h2>
+<blockquote><p>Every morning our job that re-checks insurance for the day's pickups fails for a big chunk of renters with 429 errors. We're on the plan with 100 requests per second and we only check about 300 policies, so we shouldn't be anywhere near the limit. Can you raise it?</p>
+<p>Dana, Contoso Rentals backend lead</p></blockquote>
+<h2 id="first-response">First response</h2>
+<blockquote><p>Hi Dana, thanks for the clear report. Before we talk limits, I want to look at how the requests arrive, because 300 checks can still trip a per-second limit if they all land at once. I'll pull this morning's job traffic and send you what I see by midday.</p></blockquote>
+<h2 id="scope">Scope</h2>
+<p>Severity 2: a daily job fails for about half its renters, so front-desk staff check them by hand. Not an outage, and nothing else is affected.</p>
+<h2 id="investigation">Investigation</h2>
+<ol><li><strong>Look at volume per second, not per day.</strong> The whole job hit Northwind inside one second: a peak of 662 requests against a limit of 100.</li><li><strong>Count the 429s.</strong> 528 of 662 requests were rate limited.</li><li><strong>Check the retries.</strong> Each limited request was retried immediately, twice, without waiting for the <code>Retry-After</code> header, so the retries were limited too. That's why the failures stuck.</li><li><strong>The limit isn't the problem.</strong> 300 checks at 80 per second takes under 4 seconds. The job just needs to pace itself.</li></ol>
+<div class="tbl"><table><thead><tr><th>Time (PT)</th><th>Request ID</th><th>Client</th><th>Endpoint</th><th>Status</th><th>Error</th><th>ms</th></tr></thead><tbody><tr><td>09:00:00.093</td><td><code>req_910c89d64da5</code></td><td><code>nw_live_contoso</code></td><td>GET /v1/policies/pol_SyZ1cK3W2L</td><td>200</td><td></td><td>4</td></tr><tr><td>09:00:00.093</td><td><code>req_f0f227a5caf6</code></td><td><code>nw_live_contoso</code></td><td>GET /v1/policies/pol_BEcznGUzlh</td><td>200</td><td></td><td>2</td></tr><tr><td>09:00:00.094</td><td><code>req_b42f11eb979c</code></td><td><code>nw_live_contoso</code></td><td>GET /v1/policies/pol_B1dhFdhnNT</td><td>429</td><td>rate_limited</td><td>0</td></tr><tr><td>09:00:00.095</td><td><code>req_04f962f98072</code></td><td><code>nw_live_contoso</code></td><td>GET /v1/policies/pol_e0O8ogOtLP</td><td>429</td><td>rate_limited</td><td>0</td></tr><tr><td>09:00:00.095</td><td><code>req_c5425f556af7</code></td><td><code>nw_live_contoso</code></td><td>GET /v1/policies/pol_B1dhFdhnNT</td><td>429</td><td>rate_limited</td><td>0</td></tr><tr><td>09:00:00.097</td><td><code>req_d128224c77c0</code></td><td><code>nw_live_contoso</code></td><td>GET /v1/policies/pol_B1dhFdhnNT</td><td>429</td><td>rate_limited</td><td>0</td></tr></tbody></table></div>
+<div class="term"><div class="term-bar"><i></i><i></i><i></i><span>$ npm run triage</span></div><pre><span class="">Northwind triage · 662 requests, 0 webhook deliveries · 2026-10-06 16:00:00 to 2026-10-06 16:00:00 UTC</span>
+<span class=""> </span>
+<span class="hd">ENDPOINT                        REQS   2xx   4xx   5xx  p50 ms  p95 ms</span>
+<span class="">GET /v1/policies/:id             662   134   528     0       0      13</span>
+<span class=""> </span>
+<span class="hd">ERRORS</span>
+<span class="">  429 rate_limited                  528</span>
+<span class=""> </span>
+<span class="hd">FINDINGS (1)</span>
+<span class="hi">  [high] Requests arrive in bursts above the rate limit</span>
+<span class="">    528 of 662 requests (80%) got 429. Peak was 662 requests in one second against a limit of 100. 362 retries came back before Retry-After had passed, so they were limited again.</span>
+<span class="">    first seen 2026-10-06T16:00:00.094Z</span>
+<span class="ev">    evidence: req_b42f11eb979c, req_04f962f98072, req_c5425f556af7</span>
+<span class="nx">    next: Pace batch jobs below 100 requests per second and wait for Retry-After before retrying. For daily re-checks, policy.updated webhooks remove most of the polling.</span></pre></div>
+<h2 id="root-cause">Root cause</h2>
+<p>The job started every check at once (<code>Promise.all</code> over all policies) and retried 429s instantly. It used about 300 requests' worth of the limit in a few milliseconds, then spent its retries inside the same second.</p>
+<h2 id="fix">Fix</h2>
+<p>Pace the job under the limit with a small token bucket and a worker pool, and let the API client honor <code>Retry-After</code> as a backstop.</p>
+<pre class="code diff"><span class="">--- tickets/TCK-1043-morning-429s/buggy.ts (what shipped)</span>
+<span class="">+++ customer/recheck.ts (fixed)</span>
+<span class="del">-export async function recheckAll(client: Client, items: RecheckItem[]): Promise&lt;RecheckResult&gt; {</span>
+<span class="add">+export async function recheckAll(client: Client, items: RecheckItem[], opts: { perSecond?: number; concurrency?: number } = {}): Promise&lt;RecheckResult&gt; {</span>
+<span class="add">+  const perSecond = opts.perSecond ?? 80;          // plan limit is 100/s; leave headroom</span>
+<span class="add">+  const concurrency = opts.concurrency ?? 8;</span>
+<span class="add">+  let tokens = perSecond, last = Date.now();</span>
+<span class="add">+  const acquire = async () =&gt; {</span>
+<span class="add">+    for (;;) {</span>
+<span class="add">+      const t = Date.now();</span>
+<span class="add">+      tokens = Math.min(perSecond, tokens + ((t - last) / 1000) * perSecond); last = t;</span>
+<span class="add">+      if (tokens &gt;= 1) { tokens -= 1; return; }</span>
+<span class="add">+      await new Promise(r =&gt; setTimeout(r, Math.ceil(((1 - tokens) / perSecond) * 1000)));</span>
+<span class="add">+    }</span>
+<span class="add">+  };</span>
+<span class="">   const result: RecheckResult = { checked: 0, failed: 0, failures: [] };</span>
+<span class="del">-  await Promise.all(items.map(async it =&gt; {</span>
+<span class="del">-    let r = await client.once('GET', `/v1/policies/${it.policyId}`, undefined, it.token);</span>
+<span class="del">-    for (let i = 0; i &lt; 2 &amp;&amp; r.status === 429; i++) {</span>
+<span class="del">-      r = await client.once('GET', `/v1/policies/${it.policyId}`, undefined, it.token);   // retry right away</span>
+<span class="add">+  let next = 0;</span>
+<span class="add">+  const worker = async () =&gt; {</span>
+<span class="add">+    while (next &lt; items.length) {</span>
+<span class="add">+      const it = items[next++];</span>
+<span class="add">+      await acquire();</span>
+<span class="add">+      const r = await client.request('GET', `/v1/policies/${it.policyId}`, undefined, it.token);</span>
+<span class="add">+      result.checked++;</span>
+<span class="add">+      if (r.status !== 200) { result.failed++; result.failures.push({ policyId: it.policyId, status: r.status, requestId: r.requestId }); }</span>
+<span class="">     }</span>
+<span class="del">-    result.checked++;</span>
+<span class="del">-    if (r.status !== 200) { result.failed++; result.failures.push({ policyId: it.policyId, status: r.status, requestId: r.requestId }); }</span>
+<span class="del">-  }));</span>
+<span class="add">+  };</span>
+<span class="add">+  await Promise.all(Array.from({ length: concurrency }, worker));</span>
+<span class="">   return result;</span>
+<span class=""> }</span></pre>
+<h2 id="verified">Verified</h2>
+<p>Same 300 renters with the fix: failures went from 166 to 0, rate-limited requests from 528 to 0, and the job takes 2.8 seconds.</p>
+<h2 id="reply-to-the-customer">Reply to the customer</h2>
+<blockquote><p>Hi Dana, good news: you don't need a higher limit. The job sends all 300 checks in the same instant, which is about 3x the per-second limit, and then retries immediately, so the retries get limited too.</p>
+<p>Two changes fix it. Pace the job at about 80 requests per second (it still finishes in under 4 seconds), and wait for the <code>Retry-After</code> header before retrying a 429. Example code is attached. Longer term, subscribing to <code>policy.updated</code> webhooks would let you skip most of the morning re-check, since you'd hear about cancellations as they happen.</p></blockquote>
+<h2 id="internal-note">Internal note</h2>
+<ul><li>Request to raise the limit declined; root cause was the access pattern. Customer agreed.</li><li>Worth a docs example of a paced batch job; batch jobs cause most 429 tickets.</li></ul>
+<h2 id="prevent-it-next-time">Prevent it next time</h2>
+<ul><li><strong>Docs:</strong> "Running batch jobs" page with this pacing example.</li><li><strong>Product:</strong> suggest webhooks in the 429 response's docs link for customers who poll daily.</li><li><strong>Detection:</strong> <code>rate_limit_burst</code> reports the peak second and retries that ignored <code>Retry-After</code>.</li></ul>
+<p style="margin-top:22px;color:var(--muted);font-size:14px">Run it: <code>npm run repro -- TCK-1043 buggy</code> · <a href="https://github.com/jasontso2939/api-support-casebook/tree/main/tickets/TCK-1043-morning-429s">Source and logs on GitHub</a></p></div>
+<div class="nav"><a href="TCK-1042.html">← TCK-1042: Renters see "couldn't connect" but their insurance is connected</a><a href="TCK-1044.html">TCK-1044: Policy webhooks stopped arriving →</a></div></div></main>
+<footer><div class="wrap">Northwind, Contoso Rentals and everyone in these tickets are fictional. The API, the integration code, the logs and the tests are real and run with <code>npm test</code>. Built by <a href="https://github.com/jasontso2939">Jason Tso</a> with Claude Code.</div></footer>
+</body></html>

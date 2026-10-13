@@ -1,0 +1,16 @@
+{"ts":"2026-10-08T20:30:00.034Z","app":"contoso-rentals","event":"profile_policy_shown","account_id":"acc_Cl3hfgC5rF","policy_id":"pol_JvqAS9VmU0"}
+{"ts":"2026-10-08T20:38:00.034Z","app":"contoso-rentals","event":"rental_check","account_id":"acc_Cl3hfgC5rF","policy_requested":"pol_JvqAS9VmU0","policy_used":"pol_JvqAS9VmU0","cached":true,"vin":"6344LX0MDUM91FL40","approved":true,"reasons":[]}
+{"ts":"2026-10-08T20:44:00.063Z","app":"contoso-rentals","event":"profile_policy_shown","account_id":"acc_A95uED6xcO","policy_id":"pol_G3ppFp4DYN"}
+{"ts":"2026-10-08T20:52:00.063Z","app":"contoso-rentals","event":"rental_check","account_id":"acc_A95uED6xcO","policy_requested":"pol_QQsM3nWg8U","policy_used":"pol_G3ppFp4DYN","cached":true,"vin":"685LK2FJ39SLWAG1L","approved":false,"reasons":["vehicle not on policy"]}
+{"ts":"2026-10-08T20:58:00.093Z","app":"contoso-rentals","event":"profile_policy_shown","account_id":"acc_DWO1l9VBFn","policy_id":"pol_rvzfsBKDyT"}
+{"ts":"2026-10-08T21:06:00.093Z","app":"contoso-rentals","event":"rental_check","account_id":"acc_DWO1l9VBFn","policy_requested":"pol_rvzfsBKDyT","policy_used":"pol_rvzfsBKDyT","cached":true,"vin":"B11SR53L5U0SEVTB8","approved":true,"reasons":[]}
+{"ts":"2026-10-08T21:12:00.119Z","app":"contoso-rentals","event":"profile_policy_shown","account_id":"acc_1gWmYJLRlY","policy_id":"pol_UWzje6qbFc"}
+{"ts":"2026-10-08T21:20:00.119Z","app":"contoso-rentals","event":"rental_check","account_id":"acc_1gWmYJLRlY","policy_requested":"pol_UWzje6qbFc","policy_used":"pol_UWzje6qbFc","cached":true,"vin":"H40W2S1488ZDAFL8R","approved":true,"reasons":[]}
+{"ts":"2026-10-08T21:26:00.140Z","app":"contoso-rentals","event":"profile_policy_shown","account_id":"acc_GtYBN9bP4w","policy_id":"pol_TKsevROMCG"}
+{"ts":"2026-10-08T21:34:00.141Z","app":"contoso-rentals","event":"rental_check","account_id":"acc_GtYBN9bP4w","policy_requested":"pol_o0okSbuOMF","policy_used":"pol_TKsevROMCG","cached":true,"vin":"SBZ0HHR15212YF06K","approved":false,"reasons":["vehicle not on policy"]}
+{"ts":"2026-10-08T21:40:00.168Z","app":"contoso-rentals","event":"profile_policy_shown","account_id":"acc_R8HtQHaE1U","policy_id":"pol_57E6cyKrQz"}
+{"ts":"2026-10-08T21:48:00.168Z","app":"contoso-rentals","event":"rental_check","account_id":"acc_R8HtQHaE1U","policy_requested":"pol_57E6cyKrQz","policy_used":"pol_57E6cyKrQz","cached":true,"vin":"G21MXZCVU0TEXXXBT","approved":true,"reasons":[]}
+{"ts":"2026-10-08T21:54:00.186Z","app":"contoso-rentals","event":"profile_policy_shown","account_id":"acc_sgIIlzQ5Dh","policy_id":"pol_E0ntuzOFAP"}
+{"ts":"2026-10-08T22:02:00.186Z","app":"contoso-rentals","event":"rental_check","account_id":"acc_sgIIlzQ5Dh","policy_requested":"pol_E0ntuzOFAP","policy_used":"pol_E0ntuzOFAP","cached":true,"vin":"39D8LREUBHR3Z6408","approved":true,"reasons":[]}
+{"ts":"2026-10-08T22:08:00.218Z","app":"contoso-rentals","event":"profile_policy_shown","account_id":"acc_kEaDjH949e","policy_id":"pol_gEc0sbvnHC"}
+{"ts":"2026-10-08T22:16:00.218Z","app":"contoso-rentals","event":"rental_check","account_id":"acc_kEaDjH949e","policy_requested":"pol_jBjYU0eFiA","policy_used":"pol_gEc0sbvnHC","cached":true,"vin":"1291PTC8DLCMSWFEE","approved":false,"reasons":["vehicle not on policy"]}

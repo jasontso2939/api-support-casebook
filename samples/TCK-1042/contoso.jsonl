@@ -1,0 +1,8 @@
+{"ts":"2026-10-03T19:09:30.096Z","app":"contoso-rentals","event":"connect_failed_shown","session_id":"cs_z0jKTRjl9pP8","error_code":"code_reused","request_id":"req_3ab2e2be8060","has_token":true}
+{"ts":"2026-10-03T19:17:00.227Z","app":"contoso-rentals","event":"connect_failed_shown","session_id":"cs_BKEL2HPLTLZD","error_code":"code_reused","request_id":"req_3c9fa2ed438e","has_token":true}
+{"ts":"2026-10-03T19:24:30.348Z","app":"contoso-rentals","event":"connect_failed_shown","session_id":"cs_1OkmVxKkP9eE","error_code":"code_reused","request_id":"req_d8cecf5975e5","has_token":true}
+{"ts":"2026-10-03T19:32:00.461Z","app":"contoso-rentals","event":"connect_failed_shown","session_id":"cs_BIEQN6sRurzd","error_code":"code_reused","request_id":"req_5f4c484c5cf8","has_token":true}
+{"ts":"2026-10-03T19:39:30.563Z","app":"contoso-rentals","event":"connect_failed_shown","session_id":"cs_72LVh9JPElFc","error_code":"code_reused","request_id":"req_b96555d62577","has_token":true}
+{"ts":"2026-10-03T19:47:00.663Z","app":"contoso-rentals","event":"connect_failed_shown","session_id":"cs_HuNlngXB3Erm","error_code":"code_reused","request_id":"req_09af367178e4","has_token":true}
+{"ts":"2026-10-03T19:54:30.777Z","app":"contoso-rentals","event":"connect_failed_shown","session_id":"cs_z7wSUW84jPwb","error_code":"code_reused","request_id":"req_f3eb7c8bc9dd","has_token":true}
+{"ts":"2026-10-03T20:02:00.898Z","app":"contoso-rentals","event":"connect_failed_shown","session_id":"cs_hrRgNm7myhAY","error_code":"code_reused","request_id":"req_dd9a555523b9","has_token":true}

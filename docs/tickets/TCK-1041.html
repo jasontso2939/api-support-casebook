@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TCK-1041: Every insurance check fails with 401 after a deploy</title><meta name="description" content="Sandbox credentials deployed to production">
+<link rel="stylesheet" href="../style.css"></head><body>
+<header class="top"><div class="wrap"><div class="crumb"><a href="../index.html">API Support Casebook</a> / TCK-1041</div>
+<h1>Every insurance check fails with 401 after a deploy</h1><p>Sandbox credentials deployed to production</p>
+<div class="pills"><span class="pill s1">Sev 1</span><span class="pill">Authentication</span><span class="pill">Opened Thu Oct 1, 10:51 PT</span><span class="pill ok">Resolved Thu Oct 1, 11:19 PT</span></div></div></header>
+<main><div class="wrap"><div class="card"><h2 id="report">Report</h2>
+<blockquote><p>Since about 10:45 every insurance check at checkout is failing and renters can't complete bookings. The only change on our side was a routine deploy (v2.8.0). Is Northwind down?</p>
+<p>Priya, Contoso Rentals on-call engineer</p></blockquote>
+<h2 id="first-response-4-minutes-in">First response, 4 minutes in</h2>
+<blockquote><p>Hi Priya, I'm on this now and treating it as urgent. Northwind's API is up for other customers, so I'm looking at your traffic specifically. Two quick things would help: the time v2.8.0 went out, and one request ID from a failed check (it's in the <code>x-request-id</code> response header). I'll update you within 15 minutes either way.</p></blockquote>
+<h2 id="scope">Scope</h2>
+<p>Severity 1: a core flow is down for every renter. It's isolated to one customer: other clients are succeeding, and Contoso's own traffic was fine until 10:42 PT.</p>
+<h2 id="investigation">Investigation</h2>
+<ol><li><strong>Pull the customer's requests around the start time.</strong> Every request after 10:42 PT returned 401 <code>invalid_client</code>. Before that, everything succeeded.</li><li><strong>Read the client ID column, not just the status.</strong> The failing requests come from <code>nw_test_contoso</code>. That's a sandbox key, and it's calling the production API. The last success came from <code>nw_live_contoso</code> a few minutes before the deploy.</li><li><strong>Match it to the change.</strong> Priya confirmed v2.8.0 went out at 10:42. A deploy that changes which key is sent is a configuration problem, not an outage.</li></ol>
+<div class="tbl"><table><thead><tr><th>Time (PT)</th><th>Request ID</th><th>Client</th><th>Endpoint</th><th>Status</th><th>Error</th><th>ms</th></tr></thead><tbody><tr><td>10:28:45.373</td><td><code>req_c036ad390925</code></td><td><code>nw_live_contoso</code></td><td>GET /v1/policies/pol_jM7Ukw4aoH</td><td>200</td><td></td><td>4</td></tr><tr><td>10:32:10.382</td><td><code>req_1280e782cc1e</code></td><td><code>nw_live_contoso</code></td><td>GET /v1/policies/pol_sNmAhAUy4X</td><td>200</td><td></td><td>8</td></tr><tr><td>10:35:35.386</td><td><code>req_3f456afe59cd</code></td><td><code>nw_live_contoso</code></td><td>GET /v1/policies/pol_niCBhcVv7d</td><td>200</td><td></td><td>3</td></tr><tr><td>10:42:00.001</td><td><code>req_f36760d77264</code></td><td><code>nw_test_contoso</code></td><td>POST /v1/connect/sessions</td><td>401</td><td>invalid_client</td><td>0</td></tr><tr><td>10:42:20.002</td><td><code>req_afcba415da98</code></td><td><code>nw_test_contoso</code></td><td>GET /v1/policies/pol_YX5fVYrYwp</td><td>401</td><td>invalid_client</td><td>0</td></tr><tr><td>10:42:40.003</td><td><code>req_45006c6304f0</code></td><td><code>nw_test_contoso</code></td><td>GET /v1/policies/pol_KKdAo9V51d</td><td>401</td><td>invalid_client</td><td>0</td></tr><tr><td>10:43:00.004</td><td><code>req_73ad2e781fd2</code></td><td><code>nw_test_contoso</code></td><td>POST /v1/connect/sessions</td><td>401</td><td>invalid_client</td><td>0</td></tr><tr><td>10:43:20.005</td><td><code>req_f622b0fe85ae</code></td><td><code>nw_test_contoso</code></td><td>GET /v1/policies/pol_3Z6ZUpcrfJ</td><td>401</td><td>invalid_client</td><td>0</td></tr></tbody></table></div>
+<p>Triage output on the same logs:</p>
+<div class="term"><div class="term-bar"><i></i><i></i><i></i><span>$ npm run triage</span></div><pre><span class="">Northwind triage · 78 requests, 0 webhook deliveries · 2026-10-01 16:58:00 to 2026-10-01 17:51:40 UTC</span>
+<span class=""> </span>
+<span class="hd">ENDPOINT                        REQS   2xx   4xx   5xx  p50 ms  p95 ms</span>
+<span class="">GET /v1/policies/:id              32    12    20     0       0       9</span>
+<span class="">POST /v1/connect/sessions         22    12    10     0       3       9</span>
+<span class="">POST /v1/simulate/consent         12    12     0     0       6      10</span>
+<span class="">POST /v1/token                    12    12     0     0       7       9</span>
+<span class=""> </span>
+<span class="hd">ERRORS</span>
+<span class="">  401 invalid_client                 30</span>
+<span class=""> </span>
+<span class="hd">FINDINGS (1)</span>
+<span class="hi">  [high] Sandbox credentials are calling production</span>
+<span class="">    30 requests from client nw_test_contoso were rejected with 401 invalid_client on production, 100% of traffic since 2026-10-01T17:42:00.001Z. The last successful request came from nw_live_contoso at 2026-10-01T17:35:35.386Z, so the credentials changed between those two times.</span>
+<span class="">    first seen 2026-10-01T17:42:00.001Z</span>
+<span class="ev">    evidence: req_f36760d77264, req_afcba415da98, req_45006c6304f0</span>
+<span class="nx">    next: Check the environment variables in the latest deploy. Sandbox keys (nw_test_) only work against the sandbox base URL.</span></pre></div>
+<h2 id="root-cause">Root cause</h2>
+<p>The v2.8.0 deploy promoted the staging environment file, which holds the sandbox client ID and secret, while <code>NORTHWIND_ENV</code> and the base URL stayed on production. Contoso's config loader read the variables without checking that they belong together, so the app started and every call failed.</p>
+<h2 id="unblock-first">Unblock first</h2>
+<p>Before any code change: put the live client ID and secret back in production and restart. Checkout recovered at 11:06 PT. The code fix came after.</p>
+<h2 id="fix">Fix</h2>
+<p><code>loadConfig</code> now refuses to start when the key prefixes (<code>nw_live_</code> / <code>nw_test_</code>) don't match <code>NORTHWIND_ENV</code>. A bad deploy now fails its health check and never takes traffic.</p>
+<pre class="code diff"><span class="">--- tickets/TCK-1041-sudden-401s/buggy.ts (what shipped)</span>
+<span class="">+++ customer/config.ts (fixed)</span>
+<span class=""> export function loadConfig(vars: Record&lt;string, string | undefined&gt;): Config {</span>
+<span class="del">-  return {</span>
+<span class="del">-    env: (vars.NORTHWIND_ENV ?? 'sandbox') as Env,</span>
+<span class="del">-    baseUrl: vars.NORTHWIND_BASE_URL ?? '',</span>
+<span class="del">-    clientId: vars.NORTHWIND_CLIENT_ID ?? '',</span>
+<span class="del">-    clientSecret: vars.NORTHWIND_CLIENT_SECRET ?? '',</span>
+<span class="add">+  const need = (k: string) =&gt; {</span>
+<span class="add">+    const v = vars[k];</span>
+<span class="add">+    if (!v) throw new ConfigError(`${k} is not set.`);</span>
+<span class="add">+    return v;</span>
+<span class="">   };</span>
+<span class="add">+  const env = need('NORTHWIND_ENV') as Env;</span>
+<span class="add">+  if (env !== 'sandbox' &amp;&amp; env !== 'production') throw new ConfigError(`NORTHWIND_ENV must be sandbox or production, not "${env}".`);</span>
+<span class="add">+  const cfg: Config = { env, baseUrl: need('NORTHWIND_BASE_URL'), clientId: need('NORTHWIND_CLIENT_ID'), clientSecret: need('NORTHWIND_CLIENT_SECRET') };</span>
+<span class="add">+  const idEnv = keyEnv(cfg.clientId, 'nw_live_', 'nw_test_');</span>
+<span class="add">+  const secretEnv = keyEnv(cfg.clientSecret, 'sk_live_', 'sk_test_');</span>
+<span class="add">+  if (idEnv !== env || secretEnv !== env) {</span>
+<span class="add">+    throw new ConfigError(`Northwind keys don't match NORTHWIND_ENV=${env}: client ID is ${idEnv ?? 'unrecognized'}, secret is ${secretEnv ?? 'unrecognized'}. Check the deploy's environment variables.`);</span>
+<span class="add">+  }</span>
+<span class="add">+  return cfg;</span>
+<span class=""> }</span></pre>
+<h2 id="verified">Verified</h2>
+<p>Replaying the same deploy with the fix: the deploy stops at preflight with "Northwind keys don't match NORTHWIND_ENV=production: client ID is sandbox, secret is sandbox. Check the deploy's environment variables.", the previous version keeps serving, and 30 of 30 requests after the attempted deploy succeed (before the fix: 0 of 30).</p>
+<h2 id="reply-to-the-customer">Reply to the customer</h2>
+<blockquote><p>Hi Priya, checkout has been working again since 11:06. Root cause: v2.8.0 shipped with your staging Northwind keys (<code>nw_test_...</code>) while the app was pointed at production, and sandbox keys can't authenticate there. Nothing changed or failed on Northwind's side.</p>
+<p>To keep this from happening again, I'd suggest a startup check that compares the key prefix to the environment. I've attached a short version you're welcome to drop in, along with the request IDs I traced if your team wants to cross-check.</p></blockquote>
+<h2 id="internal-note">Internal note</h2>
+<ul><li>Customer impact: about 24 minutes of failed checkouts (10:42 to 11:06 PT), all renters, one customer.</li><li>No Northwind defect. Second environment mix-up this quarter across customers, so it's a pattern worth fixing on our side too.</li></ul>
+<h2 id="prevent-it-next-time">Prevent it next time</h2>
+<ul><li><strong>Product:</strong> the 401 message could say "This is a sandbox key. Production needs a key that starts with nw_live_." That turns a 30-minute ticket into a 2-minute fix. Filed to the API team.</li><li><strong>Detection:</strong> <code>env_mismatch</code> in the triage tool flags any test key on production automatically.</li></ul>
+<p style="margin-top:22px;color:var(--muted);font-size:14px">Run it: <code>npm run repro -- TCK-1041 buggy</code> · <a href="https://github.com/jasontso2939/api-support-casebook/tree/main/tickets/TCK-1041-sudden-401s">Source and logs on GitHub</a></p></div>
+<div class="nav"><span></span><a href="TCK-1042.html">TCK-1042: Renters see "couldn't connect" but their insurance is connected →</a></div></div></main>
+<footer><div class="wrap">Northwind, Contoso Rentals and everyone in these tickets are fictional. The API, the integration code, the logs and the tests are real and run with <code>npm test</code>. Built by <a href="https://github.com/jasontso2939">Jason Tso</a> with Claude Code.</div></footer>
+</body></html>

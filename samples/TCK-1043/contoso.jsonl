@@ -1,0 +1,7 @@
+{"ts":"2026-10-06T16:00:00.000Z","app":"contoso-rentals","event":"job_start","job":"morning-recheck","items":300}
+{"ts":"2026-10-06T16:00:00.388Z","app":"contoso-rentals","event":"job_end","job":"morning-recheck","checked":300,"failed":166,"seconds":0.388}
+{"ts":"2026-10-06T16:00:00.388Z","app":"contoso-rentals","event":"recheck_failed","policy_id":"pol_B1dhFdhnNT","status":429,"request_id":"req_d128224c77c0"}
+{"ts":"2026-10-06T16:00:00.388Z","app":"contoso-rentals","event":"recheck_failed","policy_id":"pol_e0O8ogOtLP","status":429,"request_id":"req_a4e9fb647b9d"}
+{"ts":"2026-10-06T16:00:00.388Z","app":"contoso-rentals","event":"recheck_failed","policy_id":"pol_9y0aDG7fQH","status":429,"request_id":"req_1ce8a06050f2"}
+{"ts":"2026-10-06T16:00:00.388Z","app":"contoso-rentals","event":"recheck_failed","policy_id":"pol_7z7QGMtVol","status":429,"request_id":"req_6421bd1506f8"}
+{"ts":"2026-10-06T16:00:00.388Z","app":"contoso-rentals","event":"recheck_failed","policy_id":"pol_FYgdjVKir2","status":429,"request_id":"req_3e39e093fad3"}

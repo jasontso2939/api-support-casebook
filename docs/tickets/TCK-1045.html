@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TCK-1045: A renter's policy shows the wrong car</title><meta name="description" content="Customer-side cache keyed by account instead of policy">
+<link rel="stylesheet" href="../style.css"></head><body>
+<header class="top"><div class="wrap"><div class="crumb"><a href="../index.html">API Support Casebook</a> / TCK-1045</div>
+<h1>A renter's policy shows the wrong car</h1><p>Customer-side cache keyed by account instead of policy</p>
+<div class="pills"><span class="pill s2">Sev 2</span><span class="pill">Data accuracy</span><span class="pill">Opened Thu Oct 8, 15:25 PT</span><span class="pill ok">Resolved Fri Oct 9, 11:00 PT</span></div></div></header>
+<main><div class="wrap"><div class="card"><h2 id="report">Report</h2>
+<blockquote><p>Some renters are getting declined with "vehicle not on policy" even though they're insured. One renter sent us her insurance card and the car is right there. Your API is returning the wrong vehicle for some policies.</p>
+<p>Marcus, Contoso Rentals product manager</p></blockquote>
+<h2 id="first-response">First response</h2>
+<blockquote><p>Hi Marcus, thanks for sending the card, that's exactly what I need to check this properly. Could you share the policy IDs for two declined renters and, if possible, your app logs for those bookings? I'll compare what Northwind returned with what your app used.</p></blockquote>
+<h2 id="scope">Scope</h2>
+<p>Severity 2: a data-accuracy report. Wrongly declined renters lose bookings, and if the API were wrong it could affect every customer, so this needs a definite answer.</p>
+<h2 id="investigation">Investigation</h2>
+<ol><li><strong>Check what Northwind actually returned.</strong> For the declined renters, every policy Northwind served had the right vehicle for that policy. No sign of wrong data from the API.</li><li><strong>Notice what's missing.</strong> The policy each renter booked with was never requested at all. Northwind served a different policy from the same account.</li><li><strong>Compare with Contoso's logs.</strong> Their rental check logged <code>policy_requested</code> and <code>policy_used</code>, and for the declined renters they differ. Every one of them has two cars on two policies.</li><li><strong>So the swap happened in the app.</strong> Contoso caches policies to avoid repeat lookups, and the cache is keyed by account. The first policy fetched for an account (shown on the renter's profile page) answers for every policy in that account.</li></ol>
+<div class="tbl"><table><thead><tr><th>Time (PT)</th><th>Request ID</th><th>Client</th><th>Endpoint</th><th>Status</th><th>Error</th><th>ms</th></tr></thead><tbody><tr><td>13:44:00.055</td><td><code>req_e2a77c927771</code></td><td><code>nw_live_contoso</code></td><td>POST /v1/token (code 119e83f6)</td><td>200</td><td></td><td>7</td></tr><tr><td>13:44:00.062</td><td><code>req_a65590beb4ac</code></td><td><code>nw_live_contoso</code></td><td>GET /v1/policies/pol_G3ppFp4DYN</td><td>200</td><td></td><td>7</td></tr></tbody></table></div>
+<p>Contoso's app log for the same bookings:</p>
+<div class="tbl"><table><thead><tr><th>Time (PT)</th><th>Contoso event</th><th>Policy requested</th><th>Policy used</th><th>Approved</th><th>Reasons</th></tr></thead><tbody><tr><td>13:38:00.034</td><td>rental_check</td><td><code>pol_JvqAS9VmU0</code></td><td><code>pol_JvqAS9VmU0</code></td><td>yes</td><td></td></tr><tr><td>13:52:00.063</td><td>rental_check</td><td><code>pol_QQsM3nWg8U</code></td><td><code>pol_G3ppFp4DYN</code></td><td><strong>no</strong></td><td>vehicle not on policy</td></tr><tr><td>14:06:00.093</td><td>rental_check</td><td><code>pol_rvzfsBKDyT</code></td><td><code>pol_rvzfsBKDyT</code></td><td>yes</td><td></td></tr><tr><td>14:20:00.119</td><td>rental_check</td><td><code>pol_UWzje6qbFc</code></td><td><code>pol_UWzje6qbFc</code></td><td>yes</td><td></td></tr><tr><td>14:34:00.141</td><td>rental_check</td><td><code>pol_o0okSbuOMF</code></td><td><code>pol_TKsevROMCG</code></td><td><strong>no</strong></td><td>vehicle not on policy</td></tr><tr><td>14:48:00.168</td><td>rental_check</td><td><code>pol_57E6cyKrQz</code></td><td><code>pol_57E6cyKrQz</code></td><td>yes</td><td></td></tr><tr><td>15:02:00.186</td><td>rental_check</td><td><code>pol_E0ntuzOFAP</code></td><td><code>pol_E0ntuzOFAP</code></td><td>yes</td><td></td></tr><tr><td>15:16:00.218</td><td>rental_check</td><td><code>pol_jBjYU0eFiA</code></td><td><code>pol_gEc0sbvnHC</code></td><td><strong>no</strong></td><td>vehicle not on policy</td></tr></tbody></table></div>
+<div class="term"><div class="term-bar"><i></i><i></i><i></i><span>$ npm run triage</span></div><pre><span class="">Northwind triage · 32 requests, 0 webhook deliveries · 2026-10-08 20:30:00 to 2026-10-08 22:08:00 UTC</span>
+<span class=""> </span>
+<span class="hd">ENDPOINT                        REQS   2xx   4xx   5xx  p50 ms  p95 ms</span>
+<span class="">POST /v1/connect/sessions          8     8     0     0       6       9</span>
+<span class="">POST /v1/simulate/consent          8     8     0     0       7       9</span>
+<span class="">POST /v1/token                     8     8     0     0       7       9</span>
+<span class="">GET /v1/policies/:id               8     8     0     0       7      10</span>
+<span class=""> </span>
+<span class="hd">ERRORS  none</span>
+<span class=""> </span>
+<span class="hd">FINDINGS (1)</span>
+<span class="hi">  [high] The app checked a different policy than the renter booked with</span>
+<span class="">    3 rental checks used another policy from the same account. Northwind never received a request for 3 of the requested policies, so the wrong data came from the app's side, not the API.</span>
+<span class="">    first seen 2026-10-08T20:52:00.063Z</span>
+<span class="ev">    evidence: pol_QQsM3nWg8U requested, pol_G3ppFp4DYN used (served by req_a65590beb4ac), pol_o0okSbuOMF requested, pol_TKsevROMCG used (served by req_91e5d7079fcd), pol_jBjYU0eFiA requested, pol_gEc0sbvnHC used (served by req_58dc76ca79e5)</span>
+<span class="nx">    next: Look at any cache between the app and Northwind: it should be keyed by policy ID, not account ID.</span></pre></div>
+<h2 id="root-cause">Root cause</h2>
+<p>Contoso's policy cache used the account ID as its key. For renters with more than one policy, the rental check got whichever policy had been cached first.</p>
+<h2 id="fix">Fix</h2>
+<p>Key the cache by account and policy ID.</p>
+<pre class="code diff"><span class="">--- tickets/TCK-1045-wrong-vehicle/buggy.ts (what shipped)</span>
+<span class="">+++ customer/policies.ts (fixed)</span>
+<span class=""> export function createPolicyService(client: Client) {</span>
+<span class="">   const cache = new Map&lt;string, any&gt;();</span>
+<span class="">   async function getPolicy(token: string, accountId: string, policyId: string) {</span>
+<span class="del">-    if (cache.has(accountId)) return { policy: cache.get(accountId), requestId: null, cached: true };</span>
+<span class="add">+    const key = `${accountId}:${policyId}`;</span>
+<span class="add">+    if (cache.has(key)) return { policy: cache.get(key), requestId: null, cached: true };</span>
+<span class="">     const r = await client.request('GET', `/v1/policies/${policyId}`, undefined, token);</span>
+<span class="">     if (r.status !== 200) throw new Error(`policy lookup failed: ${r.status} ${r.data?.error?.code} (${r.requestId})`);</span>
+<span class="del">-    cache.set(accountId, r.data);</span>
+<span class="add">+    cache.set(key, r.data);</span>
+<span class="">     return { policy: r.data, requestId: r.requestId, cached: false };</span>
+<span class="">   }</span>
+<span class="">   return { getPolicy, cache };</span>
+<span class=""> }</span></pre>
+<h2 id="verified">Verified</h2>
+<p>Same renters with the fix: wrong-policy checks went from 3 to 0, and wrongful declines from 3 to 0.</p>
+<h2 id="reply-to-the-customer">Reply to the customer</h2>
+<blockquote><p>Hi Marcus, I traced the declined bookings and the API returned the correct vehicle for every policy it was asked about. The catch is that it was never asked about the policy those renters booked with. All the affected renters have two cars on two separate policies, and your policy cache is keyed by account, so the rental check reused the first policy it had cached.</p>
+<p>Keying the cache by policy ID fixes it; the change is attached. Those renters should pass if you re-run their checks after the fix ships.</p></blockquote>
+<h2 id="internal-note">Internal note</h2>
+<ul><li>Northwind data verified correct; no API defect. Closed with the customer's agreement.</li><li>Every renter with two policies hit this (3 of 8 in the sample), so it would have kept recurring.</li></ul>
+<h2 id="prevent-it-next-time">Prevent it next time</h2>
+<ul><li><strong>Docs:</strong> call out that one account can hold several policies, each with its own vehicles.</li><li><strong>Detection:</strong> with the customer's logs, <code>policy_mismatch</code> compares what was requested with what was used and shows whether the API ever saw the request.</li></ul>
+<p style="margin-top:22px;color:var(--muted);font-size:14px">Run it: <code>npm run repro -- TCK-1045 buggy</code> · <a href="https://github.com/jasontso2939/api-support-casebook/tree/main/tickets/TCK-1045-wrong-vehicle">Source and logs on GitHub</a></p></div>
+<div class="nav"><a href="TCK-1044.html">← TCK-1044: Policy webhooks stopped arriving</a><a href="../index.html">All tickets</a></div></div></main>
+<footer><div class="wrap">Northwind, Contoso Rentals and everyone in these tickets are fictional. The API, the integration code, the logs and the tests are real and run with <code>npm test</code>. Built by <a href="https://github.com/jasontso2939">Jason Tso</a> with Claude Code.</div></footer>
+</body></html>

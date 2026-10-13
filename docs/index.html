@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>API Support Casebook</title><meta name="description" content="Five API support tickets worked end to end: logs, triage, root cause, fix, regression test, customer reply.">
+<link rel="stylesheet" href="style.css"></head><body>
+<header class="top"><div class="wrap"><div class="crumb">Jason Tso · portfolio project</div>
+<h1>API Support Casebook</h1>
+<p>Five support tickets against an insurance-data API, each worked end to end: read the logs, find the root cause, unblock the customer, ship a fix with a regression test, and write the reply. The API, the customer's integration and the logs are real code you can run.</p>
+<div class="pills"><a class="pill" style="text-decoration:none" href="https://github.com/jasontso2939/api-support-casebook">Code on GitHub</a><a class="pill" style="text-decoration:none" href="playbook.html">Support playbook</a></div></div></header>
+<main><div class="wrap">
+<div class="grid"><div class="stat"><b>5</b><span>tickets, Sev 1 to Sev 3</span></div><div class="stat"><b>18</b><span>automated tests</span></div><div class="stat"><b>5</b><span>log patterns the triage tool detects</span></div><div class="stat"><b>0</b><span>runtime dependencies</span></div></div>
+<h2>Why this exists</h2>
+<div class="card"><p>After a final-round interview for a customer success engineering role, the feedback was specific: I needed more hands-on API support experience. So I built the practice ground myself. Northwind is a mock insurance-data API with the behavior real tickets depend on: single-use authorization codes, environment-scoped keys, rate limits with <code>Retry-After</code>, signed webhooks, and a request ID on every log line. Contoso Rentals is a customer whose integration has five realistic bugs.</p></div>
+<h2>The tickets</h2>
+<div class="tickets"><a class="t" href="tickets/TCK-1041.html"><div class="row"><span class="id">TCK-1041</span><span class="sev s1">Sev 1</span><span class="tag">Authentication</span></div><h3>Every insurance check fails with 401 after a deploy</h3><p>Sandbox credentials deployed to production</p></a>
+<a class="t" href="tickets/TCK-1042.html"><div class="row"><span class="id">TCK-1042</span><span class="sev s3">Sev 3</span><span class="tag">Consent flow</span></div><h3>Renters see "couldn't connect" but their insurance is connected</h3><p>One authorization code exchanged twice</p></a>
+<a class="t" href="tickets/TCK-1043.html"><div class="row"><span class="id">TCK-1043</span><span class="sev s2">Sev 2</span><span class="tag">Rate limits</span></div><h3>The 9 a.m. re-check job fails for hundreds of renters</h3><p>Burst traffic over the rate limit, retries ignoring Retry-After</p></a>
+<a class="t" href="tickets/TCK-1044.html"><div class="row"><span class="id">TCK-1044</span><span class="sev s2">Sev 2</span><span class="tag">Webhooks</span></div><h3>Policy webhooks stopped arriving</h3><p>Signature checked against a re-serialized body</p></a>
+<a class="t" href="tickets/TCK-1045.html"><div class="row"><span class="id">TCK-1045</span><span class="sev s2">Sev 2</span><span class="tag">Data accuracy</span></div><h3>A renter's policy shows the wrong car</h3><p>Customer-side cache keyed by account instead of policy</p></a></div>
+<h2>How each ticket is worked</h2>
+<ol class="steps"><li><b>Acknowledge</b>Reply fast, say what happens next.</li><li><b>Size it</b>Severity from impact, not volume.</li><li><b>Scope it</b>One customer or everyone? Since when?</li><li><b>Read the logs</b>Request IDs, client, endpoint, status, timing.</li><li><b>Unblock</b>Get the customer working before the root cause.</li><li><b>Fix and prove it</b>A change plus a test that fails on the old code.</li><li><b>Close twice</b>A clear reply, and a note that prevents the next one.</li></ol>
+<h2>Run it yourself</h2>
+<pre class="code">git clone https://github.com/jasontso2939/api-support-casebook
+cd api-support-casebook
+npm test                                   # Node 22.18+, no installs
+npm run repro -- TCK-1044 buggy            # reproduce a ticket
+npm run triage -- runs/TCK-1044/buggy/northwind.jsonl</pre>
+</div></main>
+<footer><div class="wrap">Northwind, Contoso Rentals and everyone in these tickets are fictional. The API, the integration code, the logs and the tests are real and run with <code>npm test</code>. Built by <a href="https://github.com/jasontso2939">Jason Tso</a> with Claude Code.</div></footer>
+</body></html>

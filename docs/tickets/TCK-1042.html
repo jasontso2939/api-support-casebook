@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TCK-1042: Renters see "couldn't connect" but their insurance is connected</title><meta name="description" content="One authorization code exchanged twice">
+<link rel="stylesheet" href="../style.css"></head><body>
+<header class="top"><div class="wrap"><div class="crumb"><a href="../index.html">API Support Casebook</a> / TCK-1042</div>
+<h1>Renters see "couldn't connect" but their insurance is connected</h1><p>One authorization code exchanged twice</p>
+<div class="pills"><span class="pill s3">Sev 3</span><span class="pill">Consent flow</span><span class="pill">Opened Sat Oct 3, 13:40 PT</span><span class="pill ok">Resolved Mon Oct 5, 10:15 PT</span></div></div></header>
+<main><div class="wrap"><div class="card"><h2 id="report">Report</h2>
+<blockquote><p>A handful of renters each day say they got "We couldn't connect your insurance" after logging in to their carrier. When support looks them up later, the insurance shows as connected. It's confusing people and some of them give up. Maybe 1 in 6 or so?</p>
+<p>Marcus, Contoso Rentals product manager</p></blockquote>
+<h2 id="first-response">First response</h2>
+<blockquote><p>Hi Marcus, thanks for the detail, the "connected later" part is a really useful clue. Could you send two or three session IDs from renters who saw the error? I'll trace their requests end to end and come back with what I find today.</p></blockquote>
+<h2 id="scope">Scope</h2>
+<p>Severity 3: intermittent, a workaround exists (the connection actually worked), but it costs bookings. Only some renters, only on the callback step.</p>
+<h2 id="investigation">Investigation</h2>
+<ol><li><strong>Follow one affected session through the logs.</strong> Its authorization code was exchanged twice, about 16 ms apart. The first exchange returned 200 with a token. The second returned 400 <code>code_reused</code>.</li><li><strong>So the connection worked.</strong> The error the renter saw was the second response.</li><li><strong>Check whether it's a pattern.</strong> Across the day, 8 of 40 codes were exchanged twice, and every one of those renters saw the error. Every renter who exchanged once was fine.</li><li><strong>Why twice?</strong> Codes are single-use by design. Contoso's callback page calls their backend on load and again when the page re-renders or is reloaded, and the backend exchanges the code on every call.</li></ol>
+<div class="tbl"><table><thead><tr><th>Time (PT)</th><th>Request ID</th><th>Client</th><th>Endpoint</th><th>Status</th><th>Error</th><th>ms</th></tr></thead><tbody><tr><td>12:05:00.023</td><td><code>req_472a1efb9456</code></td><td><code>nw_live_contoso</code></td><td>POST /v1/token (code dd21427f)</td><td>200</td><td></td><td>8</td></tr><tr><td>12:09:30.076</td><td><code>req_ec3f5741b693</code></td><td><code>nw_live_contoso</code></td><td>POST /v1/token (code 9afb23f0)</td><td>200</td><td></td><td>5</td></tr><tr><td>12:09:30.095</td><td><code>req_3ab2e2be8060</code></td><td><code>nw_live_contoso</code></td><td>POST /v1/token (code 9afb23f0)</td><td>400</td><td>code_reused</td><td>9</td></tr><tr><td>12:17:00.212</td><td><code>req_416aa6818bd9</code></td><td><code>nw_live_contoso</code></td><td>POST /v1/token (code bf1a2aab)</td><td>200</td><td></td><td>7</td></tr><tr><td>12:17:00.227</td><td><code>req_3c9fa2ed438e</code></td><td><code>nw_live_contoso</code></td><td>POST /v1/token (code bf1a2aab)</td><td>400</td><td>code_reused</td><td>6</td></tr></tbody></table></div>
+<div class="term"><div class="term-bar"><i></i><i></i><i></i><span>$ npm run triage</span></div><pre><span class="">Northwind triage · 128 requests, 0 webhook deliveries · 2026-10-03 19:05:00 to 2026-10-03 20:03:30 UTC</span>
+<span class=""> </span>
+<span class="hd">ENDPOINT                        REQS   2xx   4xx   5xx  p50 ms  p95 ms</span>
+<span class="">POST /v1/token                    48    40     8     0       6       9</span>
+<span class="">POST /v1/connect/sessions         40    40     0     0       7       9</span>
+<span class="">POST /v1/simulate/consent         40    40     0     0       5       9</span>
+<span class=""> </span>
+<span class="hd">ERRORS</span>
+<span class="">  400 code_reused                     8</span>
+<span class=""> </span>
+<span class="hd">FINDINGS (1)</span>
+<span class="med">  [medium] The same authorization code is being exchanged twice</span>
+<span class="">    8 of 40 codes were exchanged more than once. The first exchange succeeded and the repeat failed with code_reused, a median 16 ms later. The connection worked; whatever showed the user the second response showed an error.</span>
+<span class="">    first seen 2026-10-03T19:09:30.076Z</span>
+<span class="ev">    evidence: req_ec3f5741b693, req_3ab2e2be8060, req_416aa6818bd9, req_3c9fa2ed438e</span>
+<span class="nx">    next: Make the callback idempotent: share one exchange per code, and treat code_reused as success when the session already has a token.</span></pre></div>
+<h2 id="root-cause">Root cause</h2>
+<p>The callback handler wasn't idempotent. A second call with the same code got <code>code_reused</code>, and the handler reported that as a failure even though the first call had already stored a token.</p>
+<h2 id="fix">Fix</h2>
+<p>Share one exchange per code, and treat a session that already has a token as connected.</p>
+<pre class="code diff"><span class="">--- tickets/TCK-1042-connect-shows-failure/buggy.ts (what shipped)</span>
+<span class="">+++ customer/connect.ts (fixed)</span>
+<span class=""> export async function completeConnect(client: Client, store: ConnectStore, sessionId: string, code: string): Promise&lt;ConnectResult&gt; {</span>
+<span class="del">-  const r = await client.request('POST', '/v1/token', { code });</span>
+<span class="del">-  if (r.status === 200) {</span>
+<span class="del">-    store.tokens.set(sessionId, { accessToken: r.data.access_token, accountId: r.data.account_id, policyIds: r.data.policy_ids });</span>
+<span class="del">-    return { ok: true, message: 'Insurance connected.', requestId: r.requestId };</span>
+<span class="del">-  }</span>
+<span class="del">-  return { ok: false, message: "We couldn't connect your insurance. Please try again.", requestId: r.requestId, errorCode: r.data?.error?.code };</span>
+<span class="add">+  if (store.tokens.has(sessionId)) return { ok: true, message: 'Insurance connected.', requestId: null };</span>
+<span class="add">+  const pending = store.inflight.get(code);</span>
+<span class="add">+  if (pending) return pending;</span>
+<span class="add">+  const p = (async (): Promise&lt;ConnectResult&gt; =&gt; {</span>
+<span class="add">+    const r = await client.request('POST', '/v1/token', { code });</span>
+<span class="add">+    if (r.status === 200) {</span>
+<span class="add">+      store.tokens.set(sessionId, { accessToken: r.data.access_token, accountId: r.data.account_id, policyIds: r.data.policy_ids });</span>
+<span class="add">+      return { ok: true, message: 'Insurance connected.', requestId: r.requestId };</span>
+<span class="add">+    }</span>
+<span class="add">+    if (r.data?.error?.code === 'code_reused' &amp;&amp; store.tokens.has(sessionId)) {</span>
+<span class="add">+      return { ok: true, message: 'Insurance connected.', requestId: r.requestId };</span>
+<span class="add">+    }</span>
+<span class="add">+    return { ok: false, message: "We couldn't connect your insurance. Please try again.", requestId: r.requestId, errorCode: r.data?.error?.code };</span>
+<span class="add">+  })();</span>
+<span class="add">+  store.inflight.set(code, p);</span>
+<span class="add">+  try { return await p; } finally { setTimeout(() =&gt; store.inflight.delete(code), 60_000).unref?.(); }</span>
+<span class=""> }</span></pre>
+<h2 id="verified">Verified</h2>
+<p>Same traffic with the fix: renters who saw the error went from 8 to 0, all 40 renters connected, and Northwind received exactly one exchange per code.</p>
+<h2 id="reply-to-the-customer">Reply to the customer</h2>
+<blockquote><p>Hi Marcus, found it. Those renters did connect successfully. The callback page calls your backend twice in some browsers, and your backend exchanges the authorization code both times. Codes are single-use, so the second exchange is rejected and that rejection is what the renter sees.</p>
+<p>The fix is on your side and small: if a session already has a token, or an exchange for that code is already in progress, return that instead of exchanging again. I've attached a version that does both. Happy to look over your change if useful.</p></blockquote>
+<h2 id="internal-note">Internal note</h2>
+<ul><li>Not a bug in the API: single-use codes are correct and documented.</li><li>Our docs don't warn that callback pages often fire twice. Third customer to hit this.</li></ul>
+<h2 id="prevent-it-next-time">Prevent it next time</h2>
+<ul><li><strong>Docs:</strong> add "make your callback idempotent" to the consent-flow guide, with this snippet.</li><li><strong>Detection:</strong> <code>duplicate_code_exchange</code> flags codes exchanged more than once, which can trigger a proactive note before the customer files a ticket.</li></ul>
+<p style="margin-top:22px;color:var(--muted);font-size:14px">Run it: <code>npm run repro -- TCK-1042 buggy</code> · <a href="https://github.com/jasontso2939/api-support-casebook/tree/main/tickets/TCK-1042-connect-shows-failure">Source and logs on GitHub</a></p></div>
+<div class="nav"><a href="TCK-1041.html">← TCK-1041: Every insurance check fails with 401 after a deploy</a><a href="TCK-1043.html">TCK-1043: The 9 a.m. re-check job fails for hundreds of renters →</a></div></div></main>
+<footer><div class="wrap">Northwind, Contoso Rentals and everyone in these tickets are fictional. The API, the integration code, the logs and the tests are real and run with <code>npm test</code>. Built by <a href="https://github.com/jasontso2939">Jason Tso</a> with Claude Code.</div></footer>
+</body></html>
