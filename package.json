@@ -1,0 +1,16 @@
+{
+  "name": "api-support-casebook",
+  "version": "1.0.0",
+  "description": "Five API support tickets worked end to end against a mock insurance-data API: logs, triage, root cause, fix, regression test, customer reply.",
+  "type": "module",
+  "private": true,
+  "engines": { "node": ">=22.18" },
+  "scripts": {
+    "test": "node --test test/*.test.ts",
+    "repro": "node scripts/repro.ts",
+    "triage": "node tools/triage.ts",
+    "casebook": "node scripts/casebook.ts",
+    "provider": "node scripts/provider.ts"
+  },
+  "license": "MIT"
+}

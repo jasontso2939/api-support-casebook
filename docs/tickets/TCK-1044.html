@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TCK-1044: Policy webhooks stopped arriving</title><meta name="description" content="Signature checked against a re-serialized body">
+<link rel="stylesheet" href="../style.css"></head><body>
+<header class="top"><div class="wrap"><div class="crumb"><a href="../index.html">API Support Casebook</a> / TCK-1044</div>
+<h1>Policy webhooks stopped arriving</h1><p>Signature checked against a re-serialized body</p>
+<div class="pills"><span class="pill s2">Sev 2</span><span class="pill">Webhooks</span><span class="pill">Opened Wed Oct 7, 14:05 PT</span><span class="pill ok">Resolved Wed Oct 7, 16:30 PT</span></div></div></header>
+<main><div class="wrap"><div class="card"><h2 id="report">Report</h2>
+<blockquote><p>We haven't received a single policy webhook since Tuesday. Cancellations aren't reaching us, which means we could hand keys to someone whose insurance lapsed. Did something change with your webhooks?</p>
+<p>Dana, Contoso Rentals backend lead</p></blockquote>
+<h2 id="first-response">First response</h2>
+<blockquote><p>Hi Dana, understood, missed cancellations are a real risk so this is my priority this afternoon. While I look at our delivery logs for your endpoint: did anything change in how your webhook endpoint is deployed or parses requests around Tuesday?</p></blockquote>
+<h2 id="scope">Scope</h2>
+<p>Severity 2: no data loss on Northwind's side, but Contoso is blind to policy changes until it's fixed. In the meantime, the morning re-check job still catches cancellations once a day, which is the workaround.</p>
+<h2 id="investigation">Investigation</h2>
+<ol><li><strong>Are we sending?</strong> Yes. Northwind attempted every event, three times each: 30 attempts for 10 events.</li><li><strong>What did the endpoint say?</strong> HTTP 401 every time. The endpoint is reachable and answering; it's refusing.</li><li><strong>A 401 from a webhook endpoint is nearly always signature verification.</strong> The two usual causes are the wrong secret, or verifying a body that isn't the exact bytes that were sent.</li><li><strong>Contoso's change.</strong> Dana confirmed they upgraded their web framework Tuesday. The new version parses JSON bodies before the handler runs, and the handler re-serialized the parsed object to verify it. Northwind's bodies have a space after each comma and colon; re-serializing removes those spaces, so the HMAC can never match.</li></ol>
+<div class="tbl"><table><thead><tr><th>Time (PT)</th><th>Request ID</th><th>Client</th><th>Endpoint</th><th>Status</th><th>Error</th><th>ms</th></tr></thead><tbody><tr><td>11:00:00.206</td><td><code>evt_dlv_x2S7jaDS</code></td><td><code>nw_live_contoso</code></td><td>webhook → /hooks/northwind (event evt_97Z4Nw6A9NyI, try 1)</td><td>401</td><td>endpoint_rejected</td><td>3</td></tr><tr><td>11:00:00.232</td><td><code>evt_dlv_a7cHQdma</code></td><td><code>nw_live_contoso</code></td><td>webhook → /hooks/northwind (event evt_97Z4Nw6A9NyI, try 2)</td><td>401</td><td>endpoint_rejected</td><td>1</td></tr><tr><td>11:00:00.284</td><td><code>evt_dlv_ln15zHC0</code></td><td><code>nw_live_contoso</code></td><td>webhook → /hooks/northwind (event evt_97Z4Nw6A9NyI, try 3)</td><td>401</td><td>endpoint_rejected</td><td>1</td></tr><tr><td>11:17:00.367</td><td><code>evt_dlv_1kObT9Ud</code></td><td><code>nw_live_contoso</code></td><td>webhook → /hooks/northwind (event evt_fmZA22xVZOSh, try 1)</td><td>401</td><td>endpoint_rejected</td><td>1</td></tr><tr><td>11:17:00.394</td><td><code>evt_dlv_0pOOT4es</code></td><td><code>nw_live_contoso</code></td><td>webhook → /hooks/northwind (event evt_fmZA22xVZOSh, try 2)</td><td>401</td><td>endpoint_rejected</td><td>2</td></tr><tr><td>11:17:00.445</td><td><code>evt_dlv_3RcweLOQ</code></td><td><code>nw_live_contoso</code></td><td>webhook → /hooks/northwind (event evt_fmZA22xVZOSh, try 3)</td><td>401</td><td>endpoint_rejected</td><td>1</td></tr></tbody></table></div>
+<div class="term"><div class="term-bar"><i></i><i></i><i></i><span>$ npm run triage</span></div><pre><span class="">Northwind triage · 41 requests, 30 webhook deliveries · 2026-10-07 15:00:00 to 2026-10-07 20:33:01 UTC</span>
+<span class=""> </span>
+<span class="hd">ENDPOINT                        REQS   2xx   4xx   5xx  p50 ms  p95 ms</span>
+<span class="">POST /v1/connect/sessions         10    10     0     0       6       9</span>
+<span class="">POST /v1/simulate/consent         10    10     0     0       4       8</span>
+<span class="">POST /v1/token                    10    10     0     0       8       8</span>
+<span class="">POST /v1/simulate/policy-event    10    10     0     0     161     167</span>
+<span class="">POST /v1/webhooks                  1     1     0     0       3       3</span>
+<span class=""> </span>
+<span class="hd">ERRORS</span>
+<span class="">  401 webhook: endpoint_rejected     30</span>
+<span class=""> </span>
+<span class="hd">FINDINGS (1)</span>
+<span class="hi">  [high] The webhook endpoint /hooks/northwind is rejecting deliveries</span>
+<span class="">    30 delivery attempts failed (HTTP 401); 10 of 10 events were never delivered after 3 attempts each. Northwind is sending; the endpoint is refusing. A 401 from a webhook endpoint almost always means signature verification failed: the wrong secret, or the body was parsed and re-serialized before verifying.</span>
+<span class="">    first seen 2026-10-07T18:00:00.206Z</span>
+<span class="ev">    evidence: evt_dlv_x2S7jaDS (event evt_97Z4Nw6A9NyI, attempt 1), evt_dlv_a7cHQdma (event evt_97Z4Nw6A9NyI, attempt 2), evt_dlv_ln15zHC0 (event evt_97Z4Nw6A9NyI, attempt 3)</span>
+<span class="nx">    next: Verify the HMAC over the raw request body, exactly as received, with the endpoint secret from registration.</span></pre></div>
+<h2 id="root-cause">Root cause</h2>
+<p>Signature verification ran over <code>JSON.stringify(parsedBody)</code> instead of the raw request body. Any change in spacing or key order changes the HMAC.</p>
+<h2 id="fix">Fix</h2>
+<p>Verify over the raw body exactly as received, compare in constant time, and reject timestamps older than five minutes to block replays.</p>
+<pre class="code diff"><span class="">--- tickets/TCK-1044-webhooks-stopped/buggy.ts (what shipped)</span>
+<span class="">+++ customer/webhooks.ts (fixed)</span>
+<span class=""> export function handleWebhook(input: WebhookInput): WebhookOutcome {</span>
+<span class="">   const parts = Object.fromEntries((input.signature ?? '').split(',').map(kv =&gt; kv.split('=') as [string, string]));</span>
+<span class="">   const t = Number(parts.t), v1 = parts.v1;</span>
+<span class="">   if (!t || !v1) return { status: 400, reason: 'missing signature' };</span>
+<span class="del">-  const body = JSON.stringify(input.parsedBody);                    // not the bytes that were signed</span>
+<span class="del">-  const expected = createHmac('sha256', input.secret).update(`${t}.${body}`).digest();</span>
+<span class="add">+  if (Math.abs(input.nowSec - t) &gt; TOLERANCE_S) return { status: 401, reason: 'timestamp outside tolerance' };</span>
+<span class="add">+  const expected = createHmac('sha256', input.secret).update(`${t}.${input.rawBody}`).digest();</span>
+<span class="">   const given = Buffer.from(v1, 'hex');</span>
+<span class="">   if (given.length !== expected.length || !timingSafeEqual(given, expected)) return { status: 401, reason: 'invalid signature' };</span>
+<span class="">   return { status: 200, reason: 'ok' };</span>
+<span class=""> }</span></pre>
+<h2 id="verified">Verified</h2>
+<p>With the fix, 10 of 10 events were delivered, each on the first attempt (before: 0 of 10).</p>
+<h2 id="reply-to-the-customer">Reply to the customer</h2>
+<blockquote><p>Hi Dana, found it, and it lines up with Tuesday's framework upgrade. Northwind has been sending every webhook; your endpoint is rejecting them with 401 because the signature check now runs on the parsed-and-re-serialized JSON instead of the raw body. Re-serializing changes the spacing, so the signature never matches.</p>
+<p>Read the raw body before the JSON parser runs and verify that. I've attached a working version. Once it's deployed I can resend the events from Tuesday onward so you don't miss any cancellations.</p></blockquote>
+<h2 id="internal-note">Internal note</h2>
+<ul><li>Offered a replay of events since Tuesday once the fix is live.</li><li>Our webhook docs say "verify the raw body" but most framework examples parse first. A runnable example per framework would prevent this.</li></ul>
+<h2 id="prevent-it-next-time">Prevent it next time</h2>
+<ul><li><strong>Product:</strong> auto-email the account contact after an endpoint fails for an hour, with the HTTP status. Contoso found out after a day.</li><li><strong>Detection:</strong> <code>webhook_rejected</code> flags endpoints rejecting deliveries and explains what a 401 usually means.</li></ul>
+<p style="margin-top:22px;color:var(--muted);font-size:14px">Run it: <code>npm run repro -- TCK-1044 buggy</code> · <a href="https://github.com/jasontso2939/api-support-casebook/tree/main/tickets/TCK-1044-webhooks-stopped">Source and logs on GitHub</a></p></div>
+<div class="nav"><a href="TCK-1043.html">← TCK-1043: The 9 a.m. re-check job fails for hundreds of renters</a><a href="TCK-1045.html">TCK-1045: A renter's policy shows the wrong car →</a></div></div></main>
+<footer><div class="wrap">Northwind, Contoso Rentals and everyone in these tickets are fictional. The API, the integration code, the logs and the tests are real and run with <code>npm test</code>. Built by <a href="https://github.com/jasontso2939">Jason Tso</a> with Claude Code.</div></footer>
+</body></html>
