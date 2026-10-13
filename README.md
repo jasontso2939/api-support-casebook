@@ -4,7 +4,7 @@ Five API support tickets, each worked end to end: read the logs, find the root c
 
 **[Read the casebook](https://jasontso2939.github.io/api-support-casebook/)** · [Support playbook](PLAYBOOK.md)
 
-<!-- Hero GIF and walkthrough video go here. -->
+![Working TCK-1044: delivery logs, triage finding, and the fix](media/casebook.gif)
 
 ## Why I built this
 
