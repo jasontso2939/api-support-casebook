@@ -67,7 +67,7 @@ npm run casebook                                  # rebuild READMEs, samples and
 
 ## How it was built
 
-Built with Claude Code. I designed the API's behavior, the five failure scenarios, the support process and the replies, and directed and reviewed the implementation.
+I designed the API's behavior, the five failure scenarios, the support process and the replies, and directed and reviewed the implementation.
 
 ## License
 
